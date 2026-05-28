@@ -715,7 +715,7 @@ function buildSystemPrompt(field) {
 // ─── 메인 앱 ────────────────────────────────────────────
 export default function ClearLaw() {
   const [step, setStep] = useState("terms");
-  const [apiKey, setApiKey] = useState(() => sessionStorage.getItem("clearlaw_key") || "");
+  const apiKey = process.env.REACT_APP_ANTHROPIC_KEY || "";
   const [selectedField, setSelectedField] = useState(null);
   const [messages, setMessages] = useState([]);
   const [streamingText, setStreamingText] = useState("");
@@ -733,10 +733,8 @@ export default function ClearLaw() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, streamingText, isStreaming]);
   useEffect(() => {
-    const key = sessionStorage.getItem("clearlaw_key");
     const agreed = localStorage.getItem("clearlaw_terms");
-    if (key && agreed) setStep("field");
-    else if (agreed) setStep("api");
+    if (agreed) setStep("field");
   }, []);
 
   const savePlan = (p) => { setPlan(p); localStorage.setItem("clearlaw_plan", JSON.stringify(p)); };
@@ -764,8 +762,7 @@ export default function ClearLaw() {
     localStorage.setItem("clearlaw_histories", JSON.stringify(updated));
   };
 
-  const handleAgreeTerms = () => { localStorage.setItem("clearlaw_terms","1"); setStep("api"); };
-  const handleApiEnter = (key) => { sessionStorage.setItem("clearlaw_key", key); setApiKey(key); setStep("field"); };
+  const handleAgreeTerms = () => { localStorage.setItem("clearlaw_terms","1"); setStep("field"); };
   const handleFieldSelect = (field) => { setSelectedField(field); setMessages([]); setCurrentHistoryId(null); setStep("chat"); };
   const handleNewChat = () => {
     if (messages.length > 0) saveHistory(messages, selectedField);
@@ -823,9 +820,6 @@ export default function ClearLaw() {
 
   // ── 이용약관 화면 ──
   if (step === "terms") return <TermsScreen onAgree={handleAgreeTerms} />;
-
-  // ── API 키 입력 화면 ──
-  if (step === "api") return <ApiScreen onEnter={handleApiEnter} />;
 
   // ── 헤더 (헤더 텍스트 잘림 해결 — truncate + flex) ──
   const fieldLabel = selectedField && step==="chat"
