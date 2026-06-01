@@ -792,7 +792,7 @@ export default function ClearLaw() {
       const response = await fetch('/api/chat', {
         method:"POST", signal:controller.signal,
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ model:"claude-sonnet-4-6", max_tokens:1500, stream:false, system:buildSystemPrompt(selectedField), messages:newMessages.map(m=>({role:m.role,content:m.content})) })
+        body:JSON.stringify({ model:"claude-sonnet-latest", max_tokens:1500, stream:false, system:buildSystemPrompt(selectedField), messages:newMessages.map(m=>({role:m.role,content:m.content})) })
       });
       if (!response.ok) {
         const err = await response.json();
