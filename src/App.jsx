@@ -692,7 +692,8 @@ function buildSystemPrompt(field) {
 4. 법률 조문이나 판례가 있다면 참고로 언급하세요.
 5. 마지막에는 항상 "이 정보는 법률 참고용이며, 중요한 사안은 법률전문가와 직접 상담하세요"를 덧붙이세요. 단, 서류([DOCUMENT] 태그) 안에는 이 문구를 절대 넣지 마세요.
 6. 친근하고 이해하기 쉬운 한국어로 답변하세요.
-7. 마크다운 형식(**, ##, - 등)을 적극 활용하여 가독성 높게 작성하세요.
+7. 마크다운에서 표(table)는 절대 사용하지 마세요. 목록(-)이나 번호(1. 2. 3.)로 대신하세요.
+8. 답변은 자연스러운 대화체로 작성하세요.
 
 ## 서류 작성 요청 시 규칙:
 사용자가 고소장, 내용증명, 진정서, 합의서, 경고장 등 서류 작성을 요청하면:
@@ -792,16 +793,33 @@ export default function ClearLaw() {
       const response = await fetch('/api/chat', {
         method:"POST", signal:controller.signal,
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ model:"claude-sonnet-4-6-20260217", max_tokens:1500, stream:false, system:buildSystemPrompt(selectedField), messages:newMessages.map(m=>({role:m.role,content:m.content})) })
+        body:JSON.stringify({ max_tokens:1500, stream:true, system:buildSystemPrompt(selectedField), messages:newMessages.map(m=>({role:m.role,content:m.content})) })
       });
       if (!response.ok) {
         const err = await response.json();
         const errMsg = err.error?.type==="authentication_error" ? "API 키가 올바르지 않습니다." : err.error?.type==="rate_limit_error" ? "잠시 후 다시 시도해 주세요." : `오류: ${err.error?.message}`;
         setMessages([...newMessages,{role:"assistant",content:errMsg}]); setIsStreaming(false); setStreamingText(""); return;
       }
-      const data = await response.json();
-      const fullText = data.content?.[0]?.text || "응답을 받지 못했습니다.";
-      const final = [...newMessages,{role:"assistant",content:fullText}];
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+      while (true) {
+        const {done,value} = await reader.read(); if (done) break;
+        const lines = decoder.decode(value,{stream:true}).split("\n");
+        for (const l of lines) {
+          if (l.startsWith("data: ")) {
+            const d = l.slice(6).trim(); if (d==="[DONE]") continue;
+            try {
+              const p = JSON.parse(d);
+              if (p.type==="content_block_delta" && p.delta?.type==="text_delta") {
+                fullText += p.delta.text;
+                setStreamingText(fullText);
+              }
+            } catch {}
+          }
+        }
+      }
+      const final = [...newMessages,{role:"assistant",content:fullText||"응답을 받지 못했습니다."}];
       setMessages(final); saveHistory(final, selectedField);
     } catch(e) {
       if (e.name!=="AbortError") setMessages([...newMessages,{role:"assistant",content:"네트워크 오류가 발생했습니다."}]);
