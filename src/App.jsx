@@ -528,17 +528,10 @@ export default function LegalAI() {
     abortRef.current = controller;
 
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        signal: controller.signal,
-        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 1500,
-          stream: true,
-          system: buildSystemPrompt(selectedField),
-          messages: newMessages.map(m => ({ role: m.role, content: m.content }))
-        })
+const response = await fetch("/api/chat", {
+        method:"POST", signal:controller.signal,
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ max_tokens:1500, stream:true, system:buildSystemPrompt(selectedField), messages:newMessages.map(m=>({role:m.role,content:m.content})) })
       });
 
       if (!response.ok) {
