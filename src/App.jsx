@@ -409,7 +409,7 @@ function buildSystemPrompt(field) {
 // ─── 메인 앱 ────────────────────────────────────────────
 export default function LegalAI() {
   const [step, setStep] = useState("terms");
-  const apiKey = process.env.REACT_APP_ANTHROPIC_KEY || "";
+  const [apiKey, setApiKey] = useState(() => sessionStorage.getItem("legal_ai_key") || "");
   const [keyInput, setKeyInput] = useState("");
   const [selectedField, setSelectedField] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -472,7 +472,7 @@ export default function LegalAI() {
   };
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, streamingText, isStreaming]);
-  useEffect(() => { if (localStorage.getItem("terms_agreed")) setStep("field"); }, []);
+  useEffect(() => { if (sessionStorage.getItem("legal_ai_key") && localStorage.getItem("terms_agreed")) setStep("field"); else if (sessionStorage.getItem("legal_ai_key")) setStep("terms"); }, []);
 
   const saveHistory = (msgs, field) => {
     if (!msgs.length) return;
@@ -485,7 +485,7 @@ export default function LegalAI() {
   };
 
   const handleEnterKey = () => {
-    if (keyInput.startsWith("sk-")) { localStorage.setItem("terms_agreed", "1"); setStep("field"); }
+    if (keyInput.startsWith("sk-")) { sessionStorage.setItem("legal_ai_key", keyInput); setApiKey(keyInput); setStep("field"); }
   };
 
   const handleAgreeTerms = () => {
@@ -528,11 +528,12 @@ export default function LegalAI() {
     abortRef.current = controller;
 
     try {
-      const response = await fetch("/api/chat", {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         signal: controller.signal,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
         body: JSON.stringify({
+          model: "claude-sonnet-4-6",
           max_tokens: 1500,
           stream: true,
           system: buildSystemPrompt(selectedField),
