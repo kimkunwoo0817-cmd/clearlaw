@@ -19,14 +19,14 @@ export default async function handler(req) {
       'x-api-key': process.env.REACT_APP_ANTHROPIC_KEY,
       'anthropic-version': '2023-06-01',
     },
-    body: JSON.stringify({ ...body, model: 'claude-sonnet-4-6' }),
+    body: JSON.stringify({ ...body, model: 'claude-sonnet-4-6', stream: false }),
   });
-  return new Response(r.body, {
+  const data = await r.json();
+  return new Response(JSON.stringify(data), {
     status: r.status,
     headers: {
       'Access-Control-Allow-Origin': '*',
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+      'Content-Type': 'application/json',
     },
   });
 }
