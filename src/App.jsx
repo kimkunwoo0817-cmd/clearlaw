@@ -789,28 +789,19 @@ export default function ClearLaw() {
     setMessages(newMessages); setIsStreaming(true); setStreamingText("");
     const controller = new AbortController(); abortRef.current = controller;
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await fetch('/api/chat', {
         method:"POST", signal:controller.signal,
-        headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},
-        body:JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1500, stream:true, system:buildSystemPrompt(selectedField), messages:newMessages.map(m=>({role:m.role,content:m.content})) })
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1500, stream:false, system:buildSystemPrompt(selectedField), messages:newMessages.map(m=>({role:m.role,content:m.content})) })
       });
       if (!response.ok) {
         const err = await response.json();
         const errMsg = err.error?.type==="authentication_error" ? "API 키가 올바르지 않습니다." : err.error?.type==="rate_limit_error" ? "잠시 후 다시 시도해 주세요." : `오류: ${err.error?.message}`;
         setMessages([...newMessages,{role:"assistant",content:errMsg}]); setIsStreaming(false); setStreamingText(""); return;
       }
-      const reader = response.body.getReader(); const decoder = new TextDecoder(); let fullText = "";
-      while (true) {
-        const {done,value} = await reader.read(); if (done) break;
-        const lines = decoder.decode(value,{stream:true}).split("\n");
-        for (const l of lines) {
-          if (l.startsWith("data: ")) {
-            const d = l.slice(6).trim(); if (d==="[DONE]") continue;
-            try { const p=JSON.parse(d); if (p.type==="content_block_delta"&&p.delta?.type==="text_delta") { fullText+=p.delta.text; setStreamingText(fullText); } } catch {}
-          }
-        }
-      }
-      const final = [...newMessages,{role:"assistant",content:fullText||"응답을 받지 못했습니다."}];
+      const data = await response.json();
+      const fullText = data.content?.[0]?.text || "응답을 받지 못했습니다.";
+      const final = [...newMessages,{role:"assistant",content:fullText}];
       setMessages(final); saveHistory(final, selectedField);
     } catch(e) {
       if (e.name!=="AbortError") setMessages([...newMessages,{role:"assistant",content:"네트워크 오류가 발생했습니다."}]);
