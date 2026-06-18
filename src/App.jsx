@@ -737,22 +737,6 @@ export default function ClearLaw() {
     if (agreed) setStep("field");
   }, []);
 
-  const savePlan = (p) => { setPlan(p); localStorage.setItem("clearlaw_plan", JSON.stringify(p)); };
-  const trialDaysLeft = () => { if (plan.type !== "trial") return 0; const d = Math.floor((Date.now()-plan.startDate)/(1000*60*60*24)); return Math.max(0,3-d); };
-  const isTrialActive = () => trialDaysLeft() > 0;
-  const isPaid = () => plan.type === "paid";
-  const todayStr = new Date().toLocaleDateString();
-  const todayChatCount = () => plan.lastChatDate !== todayStr ? 0 : plan.chatCount || 0;
-  const canChat = () => isTrialActive() || isPaid() || todayChatCount() < 3;
-  const canUseDoc = () => isTrialActive() || isPaid();
-
-  const incrementChat = () => {
-    if (isTrialActive() || isPaid()) return;
-    const today = new Date().toLocaleDateString();
-    const count = plan.lastChatDate === today ? (plan.chatCount||0)+1 : 1;
-    savePlan({...plan, chatCount:count, lastChatDate:today});
-  };
-
   const saveHistory = (msgs, field) => {
     if (!msgs.length) return;
     const id = currentHistoryId || Date.now().toString();
