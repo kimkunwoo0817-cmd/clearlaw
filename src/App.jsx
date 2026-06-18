@@ -766,8 +766,6 @@ export default function ClearLaw() {
   const sendMessage = async (text) => {
     const userText = text || input.trim();
     if (!userText || isStreaming) return;
-    if (!canChat()) { setShowUpgrade(true); return; }
-    incrementChat();
     setInput("");
     const newMessages = [...messages, { role:"user", content:userText }];
     setMessages(newMessages); setIsStreaming(true); setStreamingText("");
@@ -829,21 +827,14 @@ export default function ClearLaw() {
             style={{ background:C.redLt, border:`1px solid #FECACA`, borderRadius:20, padding:"5px 10px", color:C.red, fontSize:11, cursor:"pointer", fontFamily:"inherit", fontWeight:600, whiteSpace:"nowrap" }}>
             긴급
           </button>
-          {/* 분야 선택 화면에만 구독 버튼 */}
-          {step==="field" && !isPaid() && (
-            <button onClick={() => setShowUpgrade(true)}
-              style={{ background:C.blue, border:"none", borderRadius:20, padding:"5px 10px", color:"#fff", fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-              구독
-            </button>
-          )}
           <button onClick={() => setShowHistory(true)}
             style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:20, padding:"5px 10px", color:C.text2, fontSize:11, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
             기록
           </button>
           {step==="chat" && <>
-            <button onClick={() => { if(!canUseDoc()){setShowUpgrade(true);return;} setShowDoc(true); }}
-              style={{ background:"none", border:`1px solid ${canUseDoc()?C.border:"#FCD34D"}`, borderRadius:20, padding:"5px 10px", color:canUseDoc()?C.blue:C.amber, fontSize:11, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-              서류 양식{!canUseDoc()?" 🔒":""}
+            <button onClick={() => setShowDoc(true)}
+              style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:20, padding:"5px 10px", color:C.blue, fontSize:11, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              서류 양식
             </button>
             <button onClick={handleNewChat}
               style={{ background:"none", border:`1px solid ${C.border}`, borderRadius:20, padding:"5px 10px", color:C.text2, fontSize:11, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
@@ -853,13 +844,9 @@ export default function ClearLaw() {
         </div>
       </div>
 
-      {/* PlanBanner — 채팅 화면에만 표시 */}
-      {step==="chat" && <PlanBanner plan={plan} trialDaysLeft={trialDaysLeft} onUpgrade={() => setShowUpgrade(true)} />}
-
       {showDoc && <DocModal onClose={() => setShowDoc(false)} />}
       {showHistory && <HistorySidebar histories={histories} onLoad={handleLoadHistory} onDelete={handleDeleteHistory} onClose={() => setShowHistory(false)} currentId={currentHistoryId} />}
       {showEmergency && <EmergencyModal onClose={() => setShowEmergency(false)} />}
-      {showUpgrade && <UpgradeModal plan={plan} trialDaysLeft={trialDaysLeft} onClose={() => setShowUpgrade(false)} onUpgrade={() => { savePlan({...plan,type:"paid"}); setShowUpgrade(false); }} />}
 
       <div style={{ flex:1, overflowY:"auto", padding:"18px 16px", maxWidth:700, width:"100%", margin:"0 auto" }}>
         {step==="field" && <FieldSelect onSelect={handleFieldSelect} />}
@@ -917,7 +904,7 @@ export default function ClearLaw() {
             )}
           </div>
           <p style={{ color:C.text3, fontSize:11, textAlign:"center", marginTop:7 }}>
-            {isStreaming ? "응답 생성 중... ■ 버튼으로 중단" : `${isTrialActive()?`체험 D-${trialDaysLeft()} · `:isPaid()?"":`오늘 ${3-todayChatCount()}회 남음 · `}Enter 전송 · Shift+Enter 줄바꿈 · 법률구조공단 132`}
+            {isStreaming ? "응답 생성 중... ■ 버튼으로 중단" : "Enter 전송 · Shift+Enter 줄바꿈 · 법률구조공단 132"}
           </p>
         </div>
       )}
