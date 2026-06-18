@@ -728,7 +728,6 @@ export default function ClearLaw() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [histories, setHistories] = useState(() => { try { return JSON.parse(localStorage.getItem("clearlaw_histories")||"[]"); } catch { return []; } });
   const [currentHistoryId, setCurrentHistoryId] = useState(null);
-  const [plan, setPlan] = useState(() => { try { return JSON.parse(localStorage.getItem("clearlaw_plan")||'{"type":"trial","startDate":'+Date.now()+',"chatCount":0,"lastChatDate":""}'); } catch { return { type:"trial", startDate:Date.now(), chatCount:0, lastChatDate:"" }; } });
   const bottomRef = useRef(null);
   const abortRef = useRef(null);
 
