@@ -18,10 +18,7 @@ export default async function handler(req) {
   if (!query) {
     return new Response(JSON.stringify({ prec: [] }), {
       status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
     });
   }
 
@@ -30,14 +27,14 @@ export default async function handler(req) {
     const response = await fetch(url);
     const text = await response.text();
 
-    // XML에서 태그 값 뽑아내는 함수
+    // 태그 안 값 뽑기 (CDATA 포함)
     const getTag = (str, tag) => {
-      const match = str.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
+      const match = str.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`));
       return match ? match[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim() : '';
     };
 
-    // <prec>...</prec> 블록 전체 추출
-    const precBlocks = [...text.matchAll(/<prec[\s\S]*?>([\s\S]*?)<\/prec>/g)];
+    // <prec id="...">...</prec> 블록 추출
+    const precBlocks = [...text.matchAll(/<prec\s[^>]*>([\s\S]*?)<\/prec>/g)];
 
     const filtered = precBlocks.map(block => {
       const b = block[1];
@@ -53,19 +50,13 @@ export default async function handler(req) {
 
     return new Response(JSON.stringify({ prec: filtered }), {
       status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
     });
 
   } catch (e) {
-    return new Response(JSON.stringify({ prec: [] }), {
+    return new Response(JSON.stringify({ prec: [], error: e.message }), {
       status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
     });
   }
 }
