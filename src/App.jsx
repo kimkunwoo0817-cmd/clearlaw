@@ -816,7 +816,8 @@ export default function ClearLaw() {
       const fullText = data.content?.[0]?.text || "응답을 받지 못했습니다.";
       let precList = [];
       try {
-const keyword = userText.slice(0, 20);
+const 키워드목록 = ["전세사기","임금체불","부당해고","명예훼손","상속","이혼","양육권","사기","손해배상","계약","보증금","저작권","해고","임금","사기","폭행","성희롱","스토킹","개인정보"];
+const keyword = 키워드목록.find(k => userText.includes(k)) || userText.slice(0, 5);
 const precRes = await fetch(`/api/precedent?query=${encodeURIComponent(keyword)}`);
         const precData = await precRes.json();
         precList = precData.prec || [];
