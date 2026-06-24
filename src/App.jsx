@@ -138,7 +138,35 @@ function parseMarkdown(text) {
   }
   return result;
 }
-
+function PrecedentCards({ precs }) {
+  if (!precs || precs.length === 0) return null;
+  return (
+    <div style={{ marginTop: 10, marginBottom: 4, animation: "fadeSlideIn 0.4s ease-out" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+        <span style={{ width: 3, height: 14, background: "#2563EB", borderRadius: 2, display: "inline-block" }} />
+        <span style={{ color: "#475569", fontSize: 12, fontWeight: 600 }}>관련 판례</span>
+        <span style={{ color: "#94A3B8", fontSize: 10, marginLeft: "auto" }}>출처: 국가법령정보센터(법제처)</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {precs.map((p, i) => (
+          <a key={i} href={p.링크} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+            <div style={{ background: "#FFFFFF", border: "1px solid #E4E9F4", borderLeft: "3px solid #2563EB", borderRadius: "0 10px 10px 0", padding: "10px 13px", cursor: "pointer", transition: "all 0.15s" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#EEF3FF"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "#FFFFFF"; }}>
+              <div style={{ color: "#0F172A", fontSize: 12, fontWeight: 600, marginBottom: 4, lineHeight: 1.5 }}>{p.사건명}</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <span style={{ color: "#2563EB", fontSize: 11, fontWeight: 500 }}>{p.사건번호}</span>
+                {p.법원명 && <span style={{ color: "#94A3B8", fontSize: 11 }}>{p.법원명}</span>}
+                {p.선고일자 && <span style={{ color: "#94A3B8", fontSize: 11 }}>{p.선고일자}</span>}
+                <span style={{ marginLeft: "auto", color: "#2563EB", fontSize: 11 }}>판례 보기 →</span>
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
 // ─── 서브 컴포넌트 ──────────────────────────────────────
 function TypingIndicator() {
   return (
@@ -241,6 +269,9 @@ function Message({ msg }) {
         }}>
           {isUser ? <span style={{ whiteSpace: "pre-wrap" }}>{msg.content}</span> : <div>{parseMarkdown(msg.content)}</div>}
         </div>
+        {!isUser && msg.precs && msg.precs.length > 0 && (
+          <PrecedentCards precs={msg.precs} />
+        )}
         {!isUser && (
           <button onClick={handleCopy} style={{ marginTop: 3, background: "none", border: "none", color: copied ? C.green : C.text3, fontSize: 11, cursor: "pointer", padding: "2px 4px", fontFamily: "inherit" }}>
             {copied ? "✓ 복사됨" : "복사"}
@@ -783,7 +814,15 @@ export default function ClearLaw() {
       }
       const data = await response.json();
       const fullText = data.content?.[0]?.text || "응답을 받지 못했습니다.";
-      const final = [...newMessages,{role:"assistant",content:fullText}];
+      let precList = [];
+      try {
+        const precRes = await fetch(`/api/precedent?query=${encodeURIComponent(userText.slice(0, 20))}`);
+        const precData = await precRes.json();
+        precList = precData.prec || [];
+      } catch (e) {
+        precList = [];
+      }
+      const final = [...newMessages,{role:"assistant",content:fullText,precs:precList}];
       setMessages(final); saveHistory(final, selectedField);
     } catch(e) {
       if (e.name!=="AbortError") setMessages([...newMessages,{role:"assistant",content:"네트워크 오류가 발생했습니다."}]);
