@@ -827,7 +827,7 @@ const precRes = await fetch(`/api/precedent?query=${encodeURIComponent(keyword)}
       const final = [...newMessages,{role:"assistant",content:fullText,precs:precList}];
       setMessages(final); saveHistory(final, selectedField);
     } catch(e) {
-      if (e.name!=="AbortError") setMessages([...newMessages,{role:"assistant",content:"네트워크 오류가 발생했습니다."}]);
+if (e.name!=="AbortError") setMessages([...newMessages,{role:"assistant",content:"⚠️ 응답이 지연되고 있어요.\n\n질문이 길거나 복잡하면 답변 생성에 시간이 더 걸릴 수 있어요. 질문을 조금 더 짧게 나눠서 다시 시도해 주세요."}]);
       else if (streamingText) { const p=[...newMessages,{role:"assistant",content:streamingText+"\n\n*(응답이 중단되었습니다)*"}]; setMessages(p); saveHistory(p,selectedField); }
     } finally { setIsStreaming(false); setStreamingText(""); abortRef.current=null; }
   };
