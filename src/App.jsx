@@ -816,7 +816,8 @@ export default function ClearLaw() {
       const fullText = data.content?.[0]?.text || "응답을 받지 못했습니다.";
       let precList = [];
       try {
-        const precRes = await fetch(`/api/precedent?query=${encodeURIComponent(userText.slice(0, 20))}`);
+const keyword = userText.slice(0, 20);
+const precRes = await fetch(`/api/precedent?query=${encodeURIComponent(keyword)}`);
         const precData = await precRes.json();
         precList = precData.prec || [];
       } catch (e) {
