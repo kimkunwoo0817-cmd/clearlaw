@@ -11,7 +11,13 @@ if (!query) {
 }
 
   const url = `https://www.law.go.kr/DRF/lawSearch.do?OC=clearlaw&target=prec&type=XML&query=${encodeURIComponent(query)}&display=3&sort=ddes`;
-  const response = await fetch(url);
+const response = await fetch(url, {
+  headers: {
+    'User-Agent': 'Mozilla/5.0',
+    'Accept': 'application/xml',
+    'Referer': 'https://www.law.go.kr',
+  },
+});
   const text = await response.text();
 
   return new Response(text, {
