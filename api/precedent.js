@@ -26,20 +26,30 @@ export default async function handler(req) {
   }
 
   try {
-    const url = `https://www.law.go.kr/DRF/lawSearch.do?OC=clearlaw&target=prec&type=JSON&query=${encodeURIComponent(query)}&display=3&sort=ddes`;
+    const url = `https://www.law.go.kr/DRF/lawSearch.do?OC=clearlaw&target=prec&type=XML&query=${encodeURIComponent(query)}&display=3&sort=ddes`;
     const response = await fetch(url);
-    const data = await response.json();
+    const text = await response.text();
 
-    const precList = data?.PrecSearch?.prec || [];
-    const result = Array.isArray(precList) ? precList : [precList];
+    // XML에서 태그 값 뽑아내는 함수
+    const getTag = (str, tag) => {
+      const match = str.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
+      return match ? match[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim() : '';
+    };
 
-    const filtered = result.map(p => ({
-      사건명: p.사건명 || '',
-      사건번호: p.사건번호 || '',
-      선고일자: p.선고일자 || '',
-      법원명: p.법원명 || '',
-      링크: `https://www.law.go.kr/DRF/lawService.do?OC=clearlaw&target=prec&ID=${p.판례일련번호}&type=HTML&mobileYn=Y`,
-    }));
+    // <prec>...</prec> 블록 전체 추출
+    const precBlocks = [...text.matchAll(/<prec[\s\S]*?>([\s\S]*?)<\/prec>/g)];
+
+    const filtered = precBlocks.map(block => {
+      const b = block[1];
+      const id = getTag(b, '판례일련번호');
+      return {
+        사건명: getTag(b, '사건명'),
+        사건번호: getTag(b, '사건번호'),
+        선고일자: getTag(b, '선고일자'),
+        법원명: getTag(b, '법원명'),
+        링크: `https://www.law.go.kr/DRF/lawService.do?OC=clearlaw&target=prec&ID=${id}&type=HTML&mobileYn=Y`,
+      };
+    });
 
     return new Response(JSON.stringify({ prec: filtered }), {
       status: 200,
