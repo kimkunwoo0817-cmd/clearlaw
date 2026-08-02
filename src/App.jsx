@@ -282,13 +282,31 @@ function Message({ msg }) {
   );
 }
 
+// 스트리밍 도중 [DOCUMENT] 태그 이후는 숨김 — 완료 커밋 시 Message가 서류 카드로 파싱함
+const DOC_TAG = "[DOCUMENT]";
+function splitStreamingDoc(text) {
+  const idx = text.indexOf(DOC_TAG);
+  if (idx !== -1) return { visible: text.slice(0, idx).trimEnd(), docInProgress: true };
+  // 태그가 청크 경계에서 반쪽만 도착한 경우("...[DOCU") 꼬리의 태그 조각을 잘라서 표시
+  for (let n = Math.min(DOC_TAG.length - 1, text.length); n > 0; n--) {
+    if (text.endsWith(DOC_TAG.slice(0, n))) return { visible: text.slice(0, text.length - n), docInProgress: false };
+  }
+  return { visible: text, docInProgress: false };
+}
+
 function StreamingMessage({ text }) {
+  const { visible, docInProgress } = splitStreamingDoc(text);
   return (
     <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 20 }}>
       <div style={{ marginRight: 8, flexShrink: 0, marginTop: 2 }}><Logo size={30} borderRadius={8} /></div>
       <div style={{ maxWidth: "78%" }}>
         <div style={{ background: C.surface, color: C.text1, padding: "11px 15px", borderRadius: "16px 16px 16px 4px", fontSize: 13.5, lineHeight: 1.7, border: `1px solid ${C.border}`, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", wordBreak: "break-word" }}>
-          <div>{parseMarkdown(text)}</div>
+          <div>{parseMarkdown(visible)}</div>
+          {docInProgress && (
+            <div style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 6, background: C.blueLt, border: `1px solid ${C.blueMd}`, borderRadius: 8, padding: "6px 10px", fontSize: 12, color: C.blue, fontWeight: 600 }}>
+              📄 서류 작성 중...
+            </div>
+          )}
           <span style={{ display: "inline-block", width: 2, height: 13, background: C.blue, marginLeft: 2, animation: "blink 1s step-end infinite", verticalAlign: "middle" }} />
         </div>
       </div>
@@ -603,115 +621,6 @@ function TermsScreen({ onAgree }) {
   );
 }
 
-// ─── API 키 입력 화면 ───────────────────────────────────
-function ApiScreen({ onEnter }) {
-  const [keyInput, setKeyInput] = useState("");
-  const valid = keyInput.startsWith("sk-");
-  return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit", padding: 20 }}>
-      <div style={{ background: C.surface, borderRadius: 20, padding: "40px 32px", maxWidth: 420, width: "100%", border: `1px solid ${C.border}`, boxShadow: "0 8px 40px rgba(0,0,0,0.08)", textAlign: "center" }}>
-        <Logo size={52} borderRadius={16} />
-        <div style={{ marginTop: 14, marginBottom: 6, fontSize: 22, fontWeight: 700, color: C.text1 }}>{APP_NAME}</div>
-        <div style={{ fontSize: 13, color: C.text3, marginBottom: 24 }}>전문가 상담 전, 먼저 알아보세요</div>
-
-        {/* 8대 분야 그리드 */}
-        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", marginBottom: 24 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-            {FIELDS.map(f => (
-              <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ width: 5, height: 5, borderRadius: "50%", background: f.color, flexShrink: 0, display: "inline-block" }} />
-                <span style={{ color: C.text2, fontSize: 11 }}>{f.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ textAlign: "left", marginBottom: 16 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: C.text2, display: "block", marginBottom: 6 }}>Anthropic API 키</label>
-          <input type="password" value={keyInput} onChange={e => setKeyInput(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && valid && onEnter(keyInput)}
-            placeholder="sk-ant-..."
-            style={{ width: "100%", padding: "11px 13px", background: C.bg, border: `1.5px solid ${valid ? C.blue : C.border}`, borderRadius: 10, color: C.text1, fontSize: 13, fontFamily: "monospace", outline: "none", transition: "border-color 0.2s" }} />
-          <p style={{ color: C.text3, fontSize: 11, marginTop: 5, marginBottom: 0 }}>
-            세션 동안만 유지 · 서버 미저장 · 학습에 사용되지 않음
-          </p>
-        </div>
-
-        <button onClick={() => valid && onEnter(keyInput)} disabled={!valid}
-          style={{ width: "100%", padding: "12px", borderRadius: 10, background: valid ? C.blue : C.border, color: valid ? "#fff" : C.text3, border: "none", fontSize: 14, fontWeight: 600, cursor: valid ? "pointer" : "not-allowed", fontFamily: "inherit", transition: "all 0.2s", marginBottom: 10 }}>
-          상담 시작하기 →
-        </button>
-
-        {/* 판례 검색 업데이트 예정 배너 */}
-        <div style={{ background: C.blueLt, border: `1px solid ${C.blueMd}`, borderRadius: 10, padding: "11px 13px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ textAlign: "left" }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: C.blue }}>🔍 곧 출시 예정</div>
-            <div style={{ fontSize: 11, color: C.text2, marginTop: 2 }}>판례 검색 · 유사 사례 AI 요약 · 판례 비교 분석</div>
-          </div>
-          <span style={{ fontSize: 10, color: C.blue, fontWeight: 700, background: "#DBEAFE", padding: "3px 8px", borderRadius: 20, flexShrink: 0, marginLeft: 10 }}>업데이트</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── 플랜 배너 ───────────────────────────────────────────
-function PlanBanner({ plan, trialDaysLeft, onUpgrade }) {
-  const daysLeft = trialDaysLeft();
-  if (plan.type === "paid") return null;
-  if (plan.type === "trial" && daysLeft > 0) {
-    return (
-      <div style={{ background: C.blueLt, borderBottom: `1px solid ${C.blueMd}`, padding: "7px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ color: C.blue, fontSize: 12 }}>무료 체험 <strong>D-{daysLeft}</strong> · 모든 기능 이용 가능</span>
-        <button onClick={onUpgrade} style={{ background: "none", border: `1px solid ${C.blue}`, borderRadius: 20, padding: "3px 10px", color: C.blue, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>구독 →</button>
-      </div>
-    );
-  }
-  return (
-    <div style={{ background: C.bg, borderBottom: `1px solid ${C.border}`, padding: "7px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <span style={{ color: C.text3, fontSize: 12 }}>무료 플랜 · 하루 3회 상담 · 서류생성 제한</span>
-      <button onClick={onUpgrade} style={{ background: C.blue, border: "none", borderRadius: 20, padding: "4px 12px", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>업그레이드</button>
-    </div>
-  );
-}
-
-// ─── 업그레이드 모달 ─────────────────────────────────────
-function UpgradeModal({ plan, trialDaysLeft, onClose, onUpgrade }) {
-  const daysLeft = trialDaysLeft();
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div style={{ background: C.surface, borderRadius: 20, border: `1.5px solid ${C.blue}`, width: "100%", maxWidth: 400, padding: 26, textAlign: "center", boxShadow: "0 20px 60px rgba(37,99,235,0.15)" }}>
-        <div style={{ fontSize: 36, marginBottom: 12 }}>⚡</div>
-        <div style={{ color: C.text1, fontWeight: 700, fontSize: 17, marginBottom: 8 }}>
-          {plan.type === "trial" && daysLeft === 0 ? "3일 체험이 종료되었어요" : "오늘 무료 상담이 모두 사용됐어요"}
-        </div>
-        <p style={{ color: C.text2, fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>
-          {plan.type === "trial" && daysLeft === 0 ? "계속 이용하시려면 구독을 시작하세요." : "무료 플랜은 하루 3회 상담이 가능해요."}
-        </p>
-        <div style={{ background: C.bg, border: `2px solid ${C.blue}`, borderRadius: 14, padding: "16px 16px", marginBottom: 14, textAlign: "left", position: "relative" }}>
-          <div style={{ position: "absolute", top: -10, right: 14, background: C.blue, color: "#fff", fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 20 }}>추천</div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ color: C.text1, fontWeight: 700, fontSize: 15 }}>스탠다드</div>
-            <div style={{ color: C.blue, fontWeight: 800, fontSize: 18 }}>월 9,900원</div>
-          </div>
-          {["AI 법률 상담 무제한", "서류 자동생성 무제한", "상담 기록 무제한 저장", "8개 분야 전문 상담"].map((f, i) => (
-            <div key={i} style={{ display: "flex", gap: 8, marginBottom: 5 }}>
-              <span style={{ color: C.blue }}>✓</span>
-              <span style={{ color: C.text2, fontSize: 13 }}>{f}</span>
-            </div>
-          ))}
-        </div>
-        <button onClick={onUpgrade} style={{ width: "100%", padding: "13px", background: C.blue, color: "#fff", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginBottom: 8 }}>
-          월 9,900원으로 시작하기 →
-        </button>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: C.text3, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
-          {plan.type === "trial" && daysLeft === 0 ? "무료로 하루 3회만 계속 이용" : "내일 다시 이용하기"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ─── 시스템 프롬프트 ─────────────────────────────────────
 function buildSystemPrompt(field) {
   const base = `당신은 대한민국 법률 정보 전문 AI입니다. 법률 전문가 상담 전 기초 정보를 제공하는 서비스입니다.
@@ -747,7 +656,6 @@ function buildSystemPrompt(field) {
 // ─── 메인 앱 ────────────────────────────────────────────
 export default function ClearLaw() {
   const [step, setStep] = useState("terms");
-  const apiKey = process.env.REACT_APP_ANTHROPIC_KEY || "";
   const [selectedField, setSelectedField] = useState(null);
   const [messages, setMessages] = useState([]);
   const [streamingText, setStreamingText] = useState("");
@@ -756,7 +664,6 @@ export default function ClearLaw() {
   const [showDoc, setShowDoc] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showEmergency, setShowEmergency] = useState(false);
-  const [showUpgrade, setShowUpgrade] = useState(false);
   const [histories, setHistories] = useState(() => { try { return JSON.parse(localStorage.getItem("clearlaw_histories")||"[]"); } catch { return []; } });
   const [currentHistoryId, setCurrentHistoryId] = useState(null);
   const bottomRef = useRef(null);
@@ -801,34 +708,75 @@ export default function ClearLaw() {
     const newMessages = [...messages, { role:"user", content:userText }];
     setMessages(newMessages); setIsStreaming(true); setStreamingText("");
     const controller = new AbortController(); abortRef.current = controller;
+
+    // 판례 검색은 질문 텍스트만 필요하므로 채팅과 동시에 병렬 시작
+    const 키워드목록 = ["전세사기","임금체불","부당해고","명예훼손","상속","이혼","양육권","사기","손해배상","계약","보증금","저작권","해고","임금","폭행","성희롱","스토킹","개인정보"];
+    const keyword = 키워드목록.find(k => userText.includes(k)) || userText.slice(0, 5);
+    const precPromise = fetch(`/api/precedent?query=${encodeURIComponent(keyword)}`, { signal: controller.signal })
+      .then(r => r.json()).then(d => d.prec || []).catch(() => []);
+
+    let acc = "";   // 부분 응답 누적 — 중단·연결 끊김 시 보존은 이 지역 변수 기준 (state는 비동기라 신뢰 불가)
+    let raf = null;
+    const scheduleFlush = () => { if (raf == null) raf = requestAnimationFrame(() => { raf = null; setStreamingText(acc); }); };
+
     try {
       const response = await fetch('/api/chat', {
         method:"POST", signal:controller.signal,
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ max_tokens:1500, system:buildSystemPrompt(selectedField), messages:newMessages.map(m=>({role:m.role,content:m.content})) })
+        body:JSON.stringify({ stream:true, max_tokens:1500, system:buildSystemPrompt(selectedField), messages:newMessages.map(m=>({role:m.role,content:m.content})) })
       });
-      if (!response.ok) {
-        const err = await response.json();
-        const errMsg = err.error?.type==="authentication_error" ? "API 키가 올바르지 않습니다." : err.error?.type==="rate_limit_error" ? "잠시 후 다시 시도해 주세요." : `오류: ${err.error?.message}`;
-        setMessages([...newMessages,{role:"assistant",content:errMsg}]); setIsStreaming(false); setStreamingText(""); return;
+
+      const ctype = response.headers.get("content-type") || "";
+      if (!response.ok || !ctype.includes("text/event-stream")) {
+        let errMsg = "⚠️ 서버 오류가 발생했어요. 잠시 후 다시 시도해 주세요.";
+        try {
+          const err = await response.json();
+          errMsg = err.error?.type==="authentication_error" ? "API 키가 올바르지 않습니다."
+            : err.error?.type==="rate_limit_error" ? "잠시 후 다시 시도해 주세요."
+            : err.error?.type==="overloaded_error" ? "지금 이용자가 많아요. 잠시 후 다시 시도해 주세요."
+            : `오류: ${err.error?.message || "알 수 없는 오류"}`;
+        } catch {}
+        controller.abort();
+        setMessages([...newMessages,{role:"assistant",content:errMsg}]);
+        return;
       }
-      const data = await response.json();
-      const fullText = data.content?.[0]?.text || "응답을 받지 못했습니다.";
-      let precList = [];
-      try {
-const 키워드목록 = ["전세사기","임금체불","부당해고","명예훼손","상속","이혼","양육권","사기","손해배상","계약","보증금","저작권","해고","임금","사기","폭행","성희롱","스토킹","개인정보"];
-const keyword = 키워드목록.find(k => userText.includes(k)) || userText.slice(0, 5);
-const precRes = await fetch(`/api/precedent?query=${encodeURIComponent(keyword)}`);
-        const precData = await precRes.json();
-        precList = precData.prec || [];
-      } catch (e) {
-        precList = [];
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "", streamError = null;
+      outer: while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream:true });   // stream:true — 한글이 청크 경계에서 깨지지 않게
+        const events = buffer.split(/\r?\n\r?\n/);
+        buffer = events.pop();   // 미완성 이벤트 조각은 다음 청크로 이월
+        for (const evt of events) {
+          const data = evt.split(/\r?\n/).filter(l => l.startsWith("data:")).map(l => l.slice(5).trim()).join("\n");
+          if (!data) continue;
+          let p; try { p = JSON.parse(data); } catch { continue; }
+          if (p.type === "content_block_delta" && p.delta?.type === "text_delta") { acc += p.delta.text; scheduleFlush(); }
+          else if (p.type === "error") { streamError = p.error?.message || "스트림 오류"; break outer; }
+          else if (p.type === "message_stop") { break outer; }
+        }
       }
-      const final = [...newMessages,{role:"assistant",content:fullText,precs:precList}];
+      try { reader.cancel(); } catch {}
+      if (raf != null) cancelAnimationFrame(raf);
+
+      const fullText = acc || "응답을 받지 못했습니다.";
+      // 판례가 3초 넘게 늦으면 빈 배열로 진행 — 판례 때문에 답변 표시를 막지 않음
+      const precList = await Promise.race([precPromise, new Promise(res => setTimeout(() => res([]), 3000))]);
+      const suffix = streamError ? "\n\n*(오류로 응답이 중단되었습니다)*" : "";
+      const final = [...newMessages,{role:"assistant",content:fullText+suffix,precs:precList}];
       setMessages(final); saveHistory(final, selectedField);
     } catch(e) {
-if (e.name!=="AbortError") setMessages([...newMessages,{role:"assistant",content:"⚠️ 응답이 지연되고 있어요.\n\n질문이 길거나 복잡하면 답변 생성에 시간이 더 걸릴 수 있어요. 질문을 조금 더 짧게 나눠서 다시 시도해 주세요."}]);
-      else if (streamingText) { const p=[...newMessages,{role:"assistant",content:streamingText+"\n\n*(응답이 중단되었습니다)*"}]; setMessages(p); saveHistory(p,selectedField); }
+      if (raf != null) cancelAnimationFrame(raf);
+      if (acc) {
+        const note = e.name==="AbortError" ? "\n\n*(응답이 중단되었습니다)*" : "\n\n*(연결이 끊겨 응답이 중단되었습니다)*";
+        const partial = [...newMessages,{role:"assistant",content:acc+note}];
+        setMessages(partial); saveHistory(partial, selectedField);
+      } else if (e.name!=="AbortError") {
+        setMessages([...newMessages,{role:"assistant",content:"⚠️ 응답을 받지 못했어요. 잠시 후 다시 시도해 주세요."}]);
+      }
     } finally { setIsStreaming(false); setStreamingText(""); abortRef.current=null; }
   };
 
