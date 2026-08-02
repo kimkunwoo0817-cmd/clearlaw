@@ -1,0 +1,16 @@
+# 의존성
+node_modules/
+
+# 빌드 결과물
+build/
+
+# 환경변수 (비밀 키는 절대 커밋 금지)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 기타
+.DS_Store
+npm-debug.log*
