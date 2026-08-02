@@ -267,7 +267,14 @@ function Message({ msg }) {
           boxShadow: isUser ? "0 2px 8px rgba(30,64,175,0.2)" : "0 1px 4px rgba(0,0,0,0.06)",
           wordBreak: "break-word"
         }}>
-          {isUser ? <span style={{ whiteSpace: "pre-wrap" }}>{msg.content}</span> : <div>{parseMarkdown(msg.content)}</div>}
+          {isUser && msg.attachments && msg.attachments.length > 0 && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: msg.content ? 8 : 0 }}>
+              {msg.attachments.map((a, i) => a.previewUrl
+                ? <img key={i} src={a.previewUrl} alt="첨부 문서" style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, border: "1px solid rgba(255,255,255,0.35)" }} />
+                : <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,0.15)", borderRadius: 8, padding: "5px 9px", fontSize: 12 }}>📄 {a.name}</span>)}
+            </div>
+          )}
+          {isUser ? (msg.content ? <span style={{ whiteSpace: "pre-wrap" }}>{msg.content}</span> : null) : <div>{parseMarkdown(msg.content)}</div>}
         </div>
         {!isUser && msg.precs && msg.precs.length > 0 && (
           <PrecedentCards precs={msg.precs} />
@@ -599,7 +606,7 @@ function TermsScreen({ onAgree }) {
         <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", marginBottom: 22 }}>
           <div style={{ color: C.blue, fontWeight: 600, fontSize: 12, marginBottom: 8 }}>개인정보처리방침</div>
           {[
-            "수집 항목: 서비스 이용 중 입력한 법률 상담 내용, 서류 작성 정보",
+            "수집 항목: 서비스 이용 중 입력한 법률 상담 내용, 서류 작성 정보, 첨부한 문서 파일(사진·PDF)",
             "수집 목적: AI 응답 생성 (서버 저장 없음, 세션 종료 시 자동 삭제)",
             "제3자 제공: Anthropic API를 통한 AI 응답 생성 목적으로만 전송되며, AI 모델 학습에는 사용되지 않습니다",
             "보유 기간: 세션 종료 즉시 삭제 (상담 기록은 사용자 기기에만 저장)",
@@ -619,6 +626,51 @@ function TermsScreen({ onAgree }) {
       </div>
     </div>
   );
+}
+
+// ─── 첨부 파일 처리 ──────────────────────────────────────
+// 서버(Vercel) 요청 한도(약 4MB) 안에 안전히 들어가도록 base64 총량을 제한
+const MAX_ATTACH = 4;
+const MAX_PDF_BYTES = 2.5 * 1024 * 1024;
+const MAX_TOTAL_B64 = 2.8 * 1024 * 1024;
+const IMG_MAX_EDGE = 1568;   // Claude 권장 최대 해상도(긴 변) — 문서 글자가 선명하게 유지되는 크기
+
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("decode")); };
+    img.src = url;
+  });
+}
+
+async function fileToAttachment(file) {
+  if (file.type === "application/pdf") {
+    if (file.size > MAX_PDF_BYTES) throw new Error("PDF_TOO_BIG");
+    const dataUrl = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(new Error("read"));
+      r.readAsDataURL(file);
+    });
+    return { kind:"pdf", media_type:"application/pdf", data:dataUrl.split(",")[1], name:file.name, previewUrl:null };
+  }
+  // 사진: 브라우저에서 자동 축소 (휴대폰 원본 수 MB → 수백 KB)
+  const img = await loadImage(file);
+  const scale = Math.min(1, IMG_MAX_EDGE / Math.max(img.width, img.height));
+  const w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+  return { kind:"image", media_type:"image/jpeg", data:dataUrl.split(",")[1], name:file.name, previewUrl:dataUrl };
+}
+
+// 이전 턴의 첨부는 본문(base64)을 다시 보내지 않고 표시만 남김 — 요청 용량·비용 절약
+function historyContent(m) {
+  const tag = m.attachments && m.attachments.length ? `[첨부 문서 ${m.attachments.length}건] ` : "";
+  return tag + (m.content || "");
 }
 
 // ─── 시스템 프롬프트 ─────────────────────────────────────
@@ -648,7 +700,14 @@ function buildSystemPrompt(field) {
 4. 서류 앞에 한 줄 설명을 추가하세요. 예: "대화 내용을 바탕으로 내용증명을 작성했어요. [이름] 부분만 채워서 사용하세요."
 5. 서류 종류에 따라 뒤에 아래 문구를 추가하세요:
    - 내용증명, 합의서, 저작권 침해 경고장: "직접 작성·발송 가능한 서류입니다."
-   - 고소장, 진정서, 명예훼손 고소장: "법적 효력이 있는 서류로, 전문가 검토를 권고드립니다."`;
+   - 고소장, 진정서, 명예훼손 고소장: "법적 효력이 있는 서류로, 전문가 검토를 권고드립니다."
+
+## 문서(사진·PDF)가 첨부된 경우:
+1. 먼저 어떤 문서인지 2~3문장으로 요약하세요 (문서 종류, 보낸 사람, 핵심 내용).
+2. 상대방이 요구하는 것과 기한(회신 기한, 지급 기한 등)이 있으면 명확히 짚으세요.
+3. 법적 쟁점과 대응 방향을 설명하세요.
+4. 이용자가 답변서·회신 작성을 원하면 위 [DOCUMENT] 형식으로 초안을 작성하세요.
+5. 사진이 흐리거나 잘려서 읽기 어려우면 추측하지 말고, 어느 부분이 안 보이는지 알려주고 다시 찍어 달라고 요청하세요.`;
   if (!field) return base;
   return base + `\n\n## 이번 상담 전문 분야: ${field.name}\n${field.desc}\n이 분야에 특화하여 더 상세하고 실질적인 정보를 제공하세요.`;
 }
@@ -661,6 +720,10 @@ export default function ClearLaw() {
   const [streamingText, setStreamingText] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [input, setInput] = useState("");
+  const [attachments, setAttachments] = useState([]);   // 이번에 보낼 첨부 (전송 전)
+  const [attachNote, setAttachNote] = useState("");     // 첨부 관련 안내·오류 문구
+  const [attaching, setAttaching] = useState(false);
+  const fileInputRef = useRef(null);
   const [showDoc, setShowDoc] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showEmergency, setShowEmergency] = useState(false);
@@ -677,8 +740,10 @@ export default function ClearLaw() {
 
   const saveHistory = (msgs, field) => {
     if (!msgs.length) return;
+    // 첨부 파일 본문(base64)은 기기 저장 기록에 남기지 않음 — 용량·개인정보 보호
+    const slim = msgs.map(m => m.attachments ? { ...m, attachments: m.attachments.map(a => ({ kind:a.kind, name:a.name })) } : m);
     const id = currentHistoryId || Date.now().toString();
-    const entry = { id, field, messages:msgs, date:new Date().toLocaleDateString("ko-KR",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) };
+    const entry = { id, field, messages:slim, date:new Date().toLocaleDateString("ko-KR",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) };
     const updated = [entry,...histories.filter(h=>h.id!==id)].slice(0,20);
     setHistories(updated); setCurrentHistoryId(id);
     localStorage.setItem("clearlaw_histories", JSON.stringify(updated));
@@ -701,11 +766,38 @@ export default function ClearLaw() {
   };
   const handleStop = () => { if (abortRef.current) { abortRef.current.abort(); abortRef.current=null; } };
 
+  const handlePickFiles = () => { setAttachNote(""); fileInputRef.current?.click(); };
+  const handleFilesSelected = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";   // 같은 파일을 다시 선택할 수 있게 초기화
+    if (!files.length) return;
+    setAttaching(true); setAttachNote("");
+    const next = [...attachments];
+    let note = "";
+    for (const f of files) {
+      if (next.length >= MAX_ATTACH) { note = `첨부는 최대 ${MAX_ATTACH}개까지 가능해요.`; break; }
+      if (f.type === "application/pdf" && next.some(a => a.kind === "pdf")) { note = "PDF는 한 번에 1개만 첨부할 수 있어요."; continue; }
+      try {
+        const att = await fileToAttachment(f);
+        const total = next.reduce((s, a) => s + a.data.length, 0) + att.data.length;
+        if (total > MAX_TOTAL_B64) { note = "첨부 용량이 너무 많아요. 개수를 줄여 주세요."; continue; }
+        next.push(att);
+      } catch (err) {
+        note = err.message === "PDF_TOO_BIG"
+          ? "PDF가 너무 커요(2.5MB 초과). 각 장을 사진으로 찍어 올려 주세요."
+          : `"${f.name}" 파일을 열 수 없어요. 사진(JPG·PNG)이나 스크린샷으로 올려 주세요.`;
+      }
+    }
+    setAttachments(next); setAttachNote(note); setAttaching(false);
+  };
+  const removeAttachment = (idx) => setAttachments(prev => prev.filter((_, i) => i !== idx));
+
   const sendMessage = async (text) => {
     const userText = text || input.trim();
-    if (!userText || isStreaming) return;
-    setInput("");
-    const newMessages = [...messages, { role:"user", content:userText }];
+    const atts = attachments;
+    if ((!userText && !atts.length) || isStreaming) return;
+    setInput(""); setAttachments([]); setAttachNote("");
+    const newMessages = [...messages, { role:"user", content:userText, ...(atts.length ? { attachments: atts } : {}) }];
     setMessages(newMessages); setIsStreaming(true); setStreamingText("");
     const controller = new AbortController(); abortRef.current = controller;
 
@@ -723,13 +815,25 @@ export default function ClearLaw() {
       const response = await fetch('/api/chat', {
         method:"POST", signal:controller.signal,
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ stream:true, max_tokens:1500, system:buildSystemPrompt(selectedField), messages:newMessages.map(m=>({role:m.role,content:m.content})) })
+        body:JSON.stringify({ stream:true, max_tokens:1500, system:buildSystemPrompt(selectedField), messages:newMessages.map((m, i) => {
+          // 이번 턴에만 첨부 원본을 블록으로 전송, 과거 턴은 텍스트 표시로 대체
+          if (i === newMessages.length - 1 && atts.length) {
+            const blocks = atts.map(a => a.kind === "pdf"
+              ? { type:"document", source:{ type:"base64", media_type:"application/pdf", data:a.data } }
+              : { type:"image", source:{ type:"base64", media_type:a.media_type, data:a.data } });
+            blocks.push({ type:"text", text: userText || "첨부한 문서를 검토하고 어떤 내용인지, 어떻게 대응하면 될지 알려주세요." });
+            return { role:m.role, content:blocks };
+          }
+          return { role:m.role, content:historyContent(m) };
+        }) })
       });
 
       const ctype = response.headers.get("content-type") || "";
       if (!response.ok || !ctype.includes("text/event-stream")) {
         let errMsg = "⚠️ 서버 오류가 발생했어요. 잠시 후 다시 시도해 주세요.";
-        try {
+        if (response.status === 413) {
+          errMsg = "첨부 파일이 너무 커서 전송하지 못했어요. 첨부 개수를 줄여서 다시 시도해 주세요.";
+        } else try {
           const err = await response.json();
           errMsg = err.error?.type==="authentication_error" ? "API 키가 올바르지 않습니다."
             : err.error?.type==="rate_limit_error" ? "잠시 후 다시 시도해 주세요."
@@ -879,7 +983,30 @@ export default function ClearLaw() {
 
       {step==="chat" && (
         <div style={{ background:C.surface, borderTop:`1px solid ${C.border}`, padding:"11px 14px", position:"sticky", bottom:0 }}>
+          {(attachments.length > 0 || attachNote) && (
+            <div style={{ maxWidth:700, margin:"0 auto 8px" }}>
+              {attachments.length > 0 && (
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom: attachNote ? 6 : 0 }}>
+                  {attachments.map((a, i) => (
+                    <div key={i} style={{ position:"relative" }}>
+                      {a.previewUrl
+                        ? <img src={a.previewUrl} alt={a.name} style={{ width:56, height:56, objectFit:"cover", borderRadius:10, border:`1px solid ${C.border2}` }} />
+                        : <div style={{ maxWidth:170, height:56, display:"flex", alignItems:"center", gap:6, background:C.bg, border:`1px solid ${C.border2}`, borderRadius:10, padding:"0 10px", fontSize:12, color:C.text2, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>📄 {a.name}</div>}
+                      <button onClick={() => removeAttachment(i)} style={{ position:"absolute", top:-6, right:-6, width:18, height:18, borderRadius:"50%", border:"none", background:C.text2, color:"#fff", fontSize:11, lineHeight:"18px", cursor:"pointer", padding:0 }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {attachNote && <p style={{ color:C.red, fontSize:11, margin:0 }}>{attachNote}</p>}
+            </div>
+          )}
           <div style={{ maxWidth:700, margin:"0 auto", display:"flex", gap:8, alignItems:"flex-end" }}>
+            <input ref={fileInputRef} type="file" accept="image/*,application/pdf" multiple style={{ display:"none" }} onChange={handleFilesSelected} />
+            <button onClick={handlePickFiles} disabled={isStreaming || attaching}
+              title="내용증명 등 문서 사진·PDF 첨부"
+              style={{ width:40, height:40, borderRadius:10, border:`1.5px solid ${C.border2}`, background:C.bg, color:C.text2, fontSize:16, cursor:(isStreaming||attaching)?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, opacity:(isStreaming||attaching)?0.5:1 }}>
+              {attaching ? "…" : "📎"}
+            </button>
             <textarea value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();} }}
               placeholder="법률 문제를 자세히 설명해 주세요..." rows={1} disabled={isStreaming}
@@ -888,12 +1015,12 @@ export default function ClearLaw() {
             {isStreaming ? (
               <button onClick={handleStop} style={{ width:40, height:40, borderRadius:10, border:"none", background:"#FEE2E2", color:C.red, fontSize:14, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>■</button>
             ) : (
-              <button onClick={() => sendMessage()} disabled={!input.trim()}
-                style={{ width:40, height:40, borderRadius:10, border:"none", background:input.trim()?C.blue:C.border, color:input.trim()?"#fff":C.text3, fontSize:17, cursor:input.trim()?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.2s", flexShrink:0 }}>↑</button>
+              <button onClick={() => sendMessage()} disabled={!input.trim() && attachments.length===0}
+                style={{ width:40, height:40, borderRadius:10, border:"none", background:(input.trim()||attachments.length)?C.blue:C.border, color:(input.trim()||attachments.length)?"#fff":C.text3, fontSize:17, cursor:(input.trim()||attachments.length)?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.2s", flexShrink:0 }}>↑</button>
             )}
           </div>
           <p style={{ color:C.text3, fontSize:11, textAlign:"center", marginTop:7 }}>
-            {isStreaming ? "응답 생성 중... ■ 버튼으로 중단" : "Enter 전송 · Shift+Enter 줄바꿈 · 법률구조공단 132"}
+            {isStreaming ? "응답 생성 중... ■ 버튼으로 중단" : "📎 문서 사진·PDF 첨부 · Enter 전송 · 법률구조공단 132"}
           </p>
         </div>
       )}
